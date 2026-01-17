@@ -16,11 +16,16 @@ struct ContentView: View {
     @State private var shouldNavigate = false
     private let smileDelegate = SmileCheck()
     
+    @State private var capturedImage: UIImage? = nil
+    @State private var showCamera = false
+    @State private var faceParts: [FaceParts] = []
+    @State private var partsLocation: [CGPoint] = [CGPoint.zero, CGPoint.zero, CGPoint.zero, CGPoint.zero]
+    
     func startSmileDetection() {
         smileDelegate.onSmileUpdate = { score in
             DispatchQueue.main.async {
                 self.smileScore = score
-
+                
                 if score > 0.6 {
                     if self.smileStartTime == nil {
                         self.smileStartTime = Date()
@@ -28,13 +33,15 @@ struct ContentView: View {
                         self.arSession.pause()
                         self.isDetecting = false
                         self.shouldNavigate = true
+                        showCamera = true
+                        partsLocation = [.zero, .zero, .zero, .zero]
                     }
                 } else {
                     self.smileStartTime = nil
                 }
             }
         }
-
+        
         arSession.delegate = smileDelegate
         let configuration = ARFaceTrackingConfiguration()
         arSession.run(configuration, options: [.resetTracking, .removeExistingAnchors])
@@ -42,25 +49,36 @@ struct ContentView: View {
     }
     
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 20) {
-                if smileScore ?? 0 > 0.6 {
-                    Text("😄 笑顔を検出しました！")
-                        .font(.title)
-                } else {
-                    Text(isDetecting ? "笑顔を検出中..." : "まだ検出していません")
-                }
-
-                Button("笑顔検出を開始") {
-                    startSmileDetection()
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .padding()
-            .navigationDestination(isPresented: $shouldNavigate) {
-                FukuwaraiView()
-            }
+        if let _ = capturedImage{
+            AfterCaptureUI(faceParts: faceParts)
         }
+        
+        VStack(spacing: 20) {
+            if smileScore ?? 0 > 0.6 {
+                Text("そのまま笑顔を保ってください")
+                    .font(.title)
+            } else {
+                Text(isDetecting ? "笑顔になってください" : "")
+            }
+            
+            Button {
+                startSmileDetection()
+            }label: {
+                Label("福笑いを開始", systemImage: "camera.fill")
+                    .font(.title2)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .clipShape(Capsule())
+            }
+            .sheet(isPresented: $showCamera) {
+                CameraViewControllerRepresentable(capturedImage: $capturedImage, faceParts: $faceParts)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding()
+        
     }
 }
 
